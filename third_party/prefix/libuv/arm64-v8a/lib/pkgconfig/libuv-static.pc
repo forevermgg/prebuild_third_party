@@ -1,0 +1,12 @@
+prefix=/Users/centforever/AndroidStudioProjects/prebuild_third_party/third_party/prefix/libuv/arm64-v8a
+exec_prefix=${prefix}
+libdir=/Users/centforever/AndroidStudioProjects/prebuild_third_party/third_party/prefix/libuv/arm64-v8a/lib
+includedir=/Users/centforever/AndroidStudioProjects/prebuild_third_party/third_party/prefix/libuv/arm64-v8a/include
+
+Name: libuv-static
+Version: 1.51.0
+Description: multi-platform support library with a focus on asynchronous I/O.
+URL: http://libuv.org/
+
+Libs: -L${libdir} -l:libuv.a -ldl
+Cflags: -I${includedir}

@@ -1,0 +1,44 @@
+afterEvaluate {
+    // Define a Task that will add a protobuf dependency, downloading
+    // the source from GitHub if needed.
+    println "projectDir:" + projectDir
+    println "rootDir:" + rootDir
+    println "buildDir:" + buildDir
+    String ANDROID_NDK_HOME = android.ndkDirectory.absolutePath
+    if (ANDROID_NDK_HOME.isEmpty()) {
+        throw new GradleException("Incorrect ANDROID_NDK_HOME ENV Path!")
+    }
+    System.err.println("ANDROID_NDK_HOME:" + ANDROID_NDK_HOME)
+    System.err.println("ANDROID_SDK_HOME:" + android.sdkDirectory.absolutePath)
+
+    File opensslPrefixDir = file("$rootDir/../../third_party/prefix/openssl")
+    File opensslBuildScript = file("$rootDir/../../third_party/build_openssl_android.sh")
+    File thirdPartyDir = file("$rootDir/../../third_party")
+
+    // 使用 tasks.register 定义任务，并传入类型
+    tasks.register('opensslBuild', Exec) {
+        description = "Builds OpenSSL for Android if the prebuilt directory does not exist."
+        group = "build"
+
+        // 检查 OpenSSL 预构建目录是否存在
+        // 只有当目录不存在时，任务才执行实际的构建命令
+        onlyIf {
+            !opensslPrefixDir.isDirectory()
+        }
+
+        // 配置 Exec 任务的命令
+        executable opensslBuildScript.absolutePath
+        args "${ANDROID_NDK_HOME}"
+        workingDir thirdPartyDir
+    }
+
+    /*tasks.register('boringsslBuild') {
+        exec {
+            executable "$rootDir/../../third_party/build-boringssl.sh"
+            args "${ANDROID_NDK_HOME}"
+            workingDir "${rootDir}/third_party"
+        }
+    }*/
+    preBuild.dependsOn opensslBuild
+    //preBuild.dependsOn boringsslBuild
+}

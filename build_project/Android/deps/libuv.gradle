@@ -1,0 +1,24 @@
+afterEvaluate {
+    println "projectDir:"+projectDir
+    // projectRootPath: /Users/centforever/AndroidStudioProjects/base/build_project/Android
+    println "rootDir:"+rootDir
+    println "buildDir:"+buildDir
+    tasks.register('downloadlibuv') {
+        def libDir = "$rootDir/../../third_party/libuv"
+        def libFolder = new File(libDir)
+        if (!libFolder.exists()) {
+            exec {
+                executable 'git'
+                args 'clone',
+                        '--branch',
+                        'v1.51.0',
+                        '--depth',
+                        '1',
+                        'https://github.com/libuv/libuv'
+                libDir
+                workingDir "${rootDir}/third_party"
+            }
+        }
+    }
+    preBuild.dependsOn downloadlibuv
+}

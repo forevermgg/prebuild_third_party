@@ -1,0 +1,63 @@
+// -----------------------------------------------------------
+// Zstd 库 Android 交叉编译配置
+// -----------------------------------------------------------
+// 使用 afterEvaluate 确保所有 project 和 android 属性都已初始化
+afterEvaluate {
+    // 1. 变量准备
+    String androidNdkHomePath = android.ndkDirectory.absolutePath
+    if (androidNdkHomePath.isEmpty()) {
+        throw new GradleException("Incorrect ANDROID_NDK_HOME path found in Android SDK configuration!")
+    }
+
+    // 从 Android defaultConfig 中获取 minSdkVersion 对应的 API 级别
+    int apiLevel = android.defaultConfig.minSdkVersion.getApiLevel()
+    String apiLevelStr = String.valueOf(apiLevel)
+
+    // 2. >>> 获取 ABI 列表 <<<
+    // 优先从 ndk.abiFilters 获取，如果没有设置，则使用 AGP 的默认列表 (通常是所有支持的架构)
+    Set<String> targetAbis = android.defaultConfig.ndk.abiFilters
+
+    // 如果 abiFilters 为空，尝试获取默认的 supportedAbis
+    if (targetAbis == null || targetAbis.isEmpty()) {
+        targetAbis = android.defaultConfig.supportedAbis
+        if (targetAbis.isEmpty()) {
+            // 如果仍然为空，则使用一个保守的默认列表
+            targetAbis = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"] as Set
+            System.out.println("Warning: NDK ABI filters not explicitly set. Using default set: " + targetAbis.join(", "))
+        } else {
+            System.out.println("Warning: supportedAbis: " + targetAbis.join(", "))
+        }
+    }
+
+    // 将 ABI 列表转换为逗号分隔的字符串，以便传递给 Shell 脚本
+    String targetAbisStr = targetAbis.join(",")
+    System.out.println("Zstd Build Target ABIs: " + targetAbisStr)
+
+    // --- 定义 Zstd 任务的路径 ---
+    File zstdPrefixDir = file("$rootDir/../../third_party/prefix/zstd")
+    File zstdBuildScript = file("$rootDir/../../third_party/build_zstd_android.sh")
+    File thirdPartyDir = file("$rootDir/../../third_party")
+
+    // 注册 Zstd 构建任务 (使用 Exec 类型)
+    tasks.register('zstdBuild', Exec) {
+        description = "Builds Zstd for Android if the prebuilt directory does not exist."
+        group = "build"
+
+        // 检查 Zstd 预构建目录是否存在
+        onlyIf {
+            !zstdPrefixDir.isDirectory()
+        }
+
+        // 配置 Exec 任务的命令
+        executable zstdBuildScript.absolutePath
+
+        // **修改点：向 shell 脚本传递 NDK 路径、API 级别 和 ABI 列表**
+        args androidNdkHomePath, apiLevelStr, targetAbisStr
+
+        workingDir thirdPartyDir
+    }
+    // 依赖设置
+    tasks.named('preBuild').configure {
+        dependsOn tasks.named('zstdBuild')
+    }
+}

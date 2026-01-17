@@ -1,0 +1,5 @@
+# 忽略密码文件
+sensitive.txt
+
+# 忽略API密钥文件
+api_key.txt

@@ -1,0 +1,11 @@
+prefix=/Users/centforever/AndroidStudioProjects/prebuild_third_party/third_party/prefix/fmt/arm64-v8a
+exec_prefix=/Users/centforever/AndroidStudioProjects/prebuild_third_party/third_party/prefix/fmt/arm64-v8a
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: fmt
+Description: A modern formatting library
+Version: 12.1.0
+Libs: -L${libdir} -lfmt
+Cflags: -I${includedir}
+
