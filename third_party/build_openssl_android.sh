@@ -1,6 +1,6 @@
 #!/bin/bash
 set -u
-set -euo pipefail  # 增强错误检测，避免未定义变量和管道失败忽略
+set -euo pipefail
 
 # 脚本配置
 readonly SCRIPT_NAME="$(basename "$0")"
@@ -12,14 +12,14 @@ print_success() { echo -e "\033[1;32m[SUCCESS] $*\033[0m"; }
 print_warning() { echo -e "\033[1;33m[WARNING] $*\033[0m"; }
 print_error() { echo -e "\033[1;31m[ERROR] $*\033[0m" >&2; }
 
-# 配置参数（可按需修改）
-export OPENSSL_BRANCH=openssl-3.6.0
-export OPENSSL_ANDROID_API=24  # 与NDK兼容的API级别
+# 配置参数（确保无特殊字符）
+export OPENSSL_BRANCH="openssl-3.6.0"
+export OPENSSL_ANDROID_API=24
 
 # 获取NDK路径（参数优先，环境变量次之）
 NDK=${1:-${NDK:-""}}
 if [ -z "$NDK" ]; then
-    print_error "NDK路径未设置置，请提供NDK路径作为脚本参数，或设置NDK环境变量"
+    print_error "NDK路径未设置，请提供NDK路径作为脚本参数，或设置NDK环境变量"
     exit 1
 fi
 
@@ -29,43 +29,45 @@ if [ ! -d "$NDK" ] || [ ! -f "$NDK/source.properties" ]; then
     exit 1
 fi
 
-export ANDROID_NDK_HOME=$NDK
-export ANDROID_NDK_ROOT=$NDK
+export ANDROID_NDK_HOME="$NDK"
+export ANDROID_NDK_ROOT="$NDK"
 
 # 构建输出路径配置
 export BASE=$(realpath "${BASE:-$(pwd)}")
-export PREFIX=$BASE/prefix/openssl
+export PREFIX="$BASE/prefix/openssl"
 
-# 处理已存在的输出目录（**自动删除并重建**）
+# 处理已存在的输出目录
 if [ -d "$PREFIX" ]; then
     print_warning "目标目录已存在，自动删除并重建：$PREFIX"
     rm -rf "$PREFIX" || { print_error "删除目录失败：$PREFIX"; exit 1; }
 fi
 mkdir -p "$PREFIX" || { print_error "创建输出目录失败：$PREFIX"; exit 1; }
 
-# 克隆/更新OpenSSL源码（针对标签处理）
+# 克隆/更新OpenSSL源码（彻底清理特殊字符）
 cd "$BASE" || { print_error "切换目录失败：$BASE"; exit 1; }
 if [ ! -d "openssl" ]; then
-    print_info "克隆OpenSSL源码（标签：$OPENSSL_BRANCH）"
-    # 克隆仓库并检出检出指定标签（--branch 可同时支持分支和标签）
-    git clone --branch "$OPENSSL_BRANCH" git://git.openssl.org/openssl.git || {
+    print_info "克隆OpenSSL源码（标签：${OPENSSL_BRANCH}）"
+    git clone --branch "${OPENSSL_BRANCH}" git://git.openssl.org/openssl.git || {
         print_error "克隆失败，尝试HTTPS源..."
-        git clone clone --branch "$OPENSSL_BRANCH" https://git.openssl.org/openssl.git || {
-            print_error "HTTPS克隆也失败，请检查网络连接"
+        git clone --branch "${OPENSSL_BRANCH}" https://git.openssl.org/openssl.git || {
+            print_error "HTTPS克隆也失败，请检查网络连接或使用GitHub镜像：https://github.com/openssl/openssl.git"
+            rm -rf "$PREFIX" || { print_error "删除目录失败：$PREFIX"; exit 1; }
             exit 1
         }
     }
 else
-    print_info "更新OpenSSL源码到标签：$OPENSSL_BRANCH"
+    print_info "更新OpenSSL源码到标签：${OPENSSL_BRANCH}"
     cd openssl || exit 1
-    # 拉取最新的标签信息（关键：标签需要单独拉取）
     git fetch --tags origin || { print_error "拉取远程标签失败"; exit 1; }
-    # 检出指定标签（标签不需要origin/前缀）
-    git checkout "$OPENSSL_BRANCH" || { print_error "检出标签失败"; exit 1; }
+    git checkout "${OPENSSL_BRANCH}" || { print_error "检出标签失败，请确认标签存在：${OPENSSL_BRANCH}"; exit 1; }
+    cd "$BASE" || exit 1
 fi
+
 print_info "当前目录为 $(pwd)"
 cd  ../
-cd openssl || { print_error "切换到OpenSSL目录失败"; exit 1; }  # 修复冗余cd ../
+# 进入OpenSSL源码目录
+cd openssl || { print_error "切换到OpenSSL目录失败：$BASE/openssl"; exit 1; }
+print_info "当前OpenSSL源码目录：$(pwd)"
 
 # 验证Configure脚本可用性
 if [ ! -f "Configure" ]; then
@@ -73,20 +75,23 @@ if [ ! -f "Configure" ]; then
     exit 1
 fi
 if ! perl Configure LIST | grep -q "android-" >/dev/null 2>&1; then
-    print_error "当前OpenSSL版本不支持Android配置，请确认标签：$OPENSSL_BRANCH"
+    print_error "当前OpenSSL版本不支持Android配置，请确认标签：${OPENSSL_BRANCH}"
     exit 1
 fi
 
 print_info "OpenSSL构建目录：$(realpath "$PWD")"
 print_info "输出目录：$PREFIX"
 
-# 配置NDK工具链（修复macOS路径判断）
+# 配置NDK工具链（修复macOS M1/M2路径）
 HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 HOST_ARCH=$(uname -m)
 
-# 关键修复：NDK在macOS上无论主机架构如何，工具链目录均为darwin-x86_64
 if [ "$HOST_OS" = "darwin" ]; then
-    TOOLCHAIN_ARCH="x86_64"  # macOS强制使用x86_64工具链目录
+    if [ "$HOST_ARCH" = "arm64" ]; then
+        TOOLCHAIN_ARCH="x86_64"  # M1/M2 Mac
+    else
+        TOOLCHAIN_ARCH="x86_64"   # Intel Mac
+    fi
 elif [ "$HOST_ARCH" = "x86_64" ]; then
     TOOLCHAIN_ARCH="x86_64"
 else
@@ -95,28 +100,25 @@ else
 fi
 
 TOOLCHAIN_PATH="$NDK/toolchains/llvm/prebuilt/${HOST_OS}-${TOOLCHAIN_ARCH}"
-
-# 验证工具链有效性
 if [ ! -d "$TOOLCHAIN_PATH" ] || [ ! -f "$TOOLCHAIN_PATH/bin/clang" ]; then
     print_error "NDK工具链不存在或不完整：$TOOLCHAIN_PATH"
-    print_error "请检查NDK版本（推荐r22+）"
+    print_error "请检查NDK版本（推荐r25+）"
     exit 1
 fi
 export PATH="$TOOLCHAIN_PATH/bin:$PATH"
 print_info "工具链路径：$TOOLCHAIN_PATH"
 
-# 构建函数（修复参数传递和配置逻辑）
+# 构建函数（移除make depend，修复OpenSSL 3.x兼容）
 function build_OpenSSL {
     local abi="$1"
     local api_level="$2"
     local target=""
     local extra_cflags=""
 
-    # ABI与目标架构映射（匹配OpenSSL配置）
     case "$abi" in
         armeabi-v7a)
             target="android-arm"
-            extra_cflags="-march=armv7-a -mfpu=neon"  # 启用NEON优化
+            extra_cflags="-march=armv7-a -mfpu=neon -D__ARM_PCS_VFP"
             ;;
         arm64-v8a)
             target="android-arm64"
@@ -124,11 +126,11 @@ function build_OpenSSL {
             ;;
         x86)
             target="android-x86"
-            extra_cflags="-march=i686 -mssse3 -mfpmath=sse"
+            extra_cflags="-march=i686 -mssse3 -mfpmath=sse -fPIC"
             ;;
         x86_64)
             target="android-x86_64"
-            extra_cflags="-march=x86-64 -msse4.2 -mpopcnt -mtune=x86-64"
+            extra_cflags="-march=x86-64 -msse4.2 -mpopcnt -mtune=x86-64 -fPIC"
             ;;
         *)
             print_error "不支持的ABI：$abi"
@@ -140,42 +142,45 @@ function build_OpenSSL {
     local install_dir="$PREFIX/$abi"
     mkdir -p "$install_dir" || { print_error "创建安装目录失败：$install_dir"; return 1; }
 
-    # 彻底清理之前的构建产物（避免残留影响）
+    # 清理历史产物
     print_info "清理历史构建产物..."
     make distclean >/dev/null 2>&1 || true
     rm -rf "$install_dir" || { print_error "清理安装目录失败：$install_dir"; return 1; }
 
-    # 核心配置命令（构建动态库）
-    print_info "运行配置：perl Configure $target -D__ANDROID_API__=$api_level --prefix=$install_dir $extra_cflags shared"
-    perl Configure \
+    # 核心配置（修复参数顺序，增加兼容性）
+    print_info "运行配置：perl Configure $target -D__ANDROID_API__=$api_level --prefix=$install_dir shared $extra_cflags -no-tests -no-docs"
+    if ! perl Configure \
         "$target" \
         -D__ANDROID_API__="$api_level" \
         --prefix="$install_dir" \
+        shared \
         "$extra_cflags" \
-        shared  # 构建动态库
+        -no-tests \
+        -no-docs; then
+        print_error "配置失败（ABI: $abi）"
+        return 1
+    fi
 
-    # 验证Makefile生成
     if [ ! -f "Makefile" ]; then
         print_error "配置未生成Makefile（ABI: $abi）"
         return 1
     fi
 
-    # 编译和安装（指定-j参数优化并行编译）
-    local jobs=$(nproc 2>/dev/null || echo 4)  # 兼容macOS（nproc替换为sysctl）
+    # 编译（移除make depend，OpenSSL 3.x不需要）
+    local jobs
     if [ "$HOST_OS" = "darwin" ]; then
         jobs=$(sysctl -n hw.ncpu)
+    else
+        jobs=$(nproc 2>/dev/null || echo 4)
     fi
+    print_info "使用 $jobs 个线程编译..."
 
-    print_info "开始编译..."
-    if ! make depend -j"$jobs"; then
-        print_error "make depend失败（ABI: $abi）"
-        return 1
-    fi
     if ! make -j"$jobs" build_libs; then
         print_error "编译库失败（ABI: $abi）"
+        make build_libs V=1  # 输出详细错误
         return 1
     fi
-    if ! make install_sw; then  # install_sw仅安装库和头文件，不安装文档
+    if ! make install_sw; then
         print_error "安装失败（ABI: $abi）"
         return 1
     fi
@@ -184,14 +189,15 @@ function build_OpenSSL {
     return 0
 }
 
-# 强制指定Clang工具链（避免系统默认编译器冲突）
+# 强制指定NDK工具链
 export CC=clang
 export CXX=clang++
 export AR=llvm-ar
 export RANLIB=llvm-ranlib
 export STRIP=llvm-strip
+export PATH="$TOOLCHAIN_PATH/bin:$PATH"
 
-# 构建所有支持的ABI
+# 构建所有ABI
 build_OpenSSL armeabi-v7a "$OPENSSL_ANDROID_API" || exit 1
 build_OpenSSL arm64-v8a "$OPENSSL_ANDROID_API" || exit 1
 build_OpenSSL x86 "$OPENSSL_ANDROID_API" || exit 1

@@ -21,5 +21,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "prebuild_third_party"
 include(":app")
-include(":base")
-include(":deps")

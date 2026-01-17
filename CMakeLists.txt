@@ -83,7 +83,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CMAKE_BUILD_TYPE} ${CMAKE_LIBRARY_OUTPUT_DI
 # 收集主项目源文件（已移除fml模块代码）
 set(FOREVER_SRCS
         # 项目业务代码
-        build_project/Android/base/src/main/cpp/base.cpp
+        build_project/Android/app/src/main/cpp/base.cpp
 )
 
 # 创建主项目库
