@@ -23,6 +23,8 @@ if [ -z "$NDK" ]; then
     exit 1
 fi
 
+readonly OPENSSL_ANDROID_API="$2"
+
 # 验证NDK路径有效性
 if [ ! -d "$NDK" ] || [ ! -f "$NDK/source.properties" ]; then
     print_error "无效的NDK路径：$NDK（缺少source.properties文件）"

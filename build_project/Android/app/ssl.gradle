@@ -15,6 +15,10 @@ afterEvaluate {
     File opensslBuildScript = file("$rootDir/../../third_party/build_openssl_android.sh")
     File thirdPartyDir = file("$rootDir/../../third_party")
 
+    // 从 Android defaultConfig 中获取 minSdkVersion 对应的 API 级别
+    int apiLevel = android.defaultConfig.minSdkVersion.getApiLevel()
+    String apiLevelStr = String.valueOf(apiLevel)
+
     // 使用 tasks.register 定义任务，并传入类型
     tasks.register('opensslBuild', Exec) {
         description = "Builds OpenSSL for Android if the prebuilt directory does not exist."
@@ -28,7 +32,7 @@ afterEvaluate {
 
         // 配置 Exec 任务的命令
         executable opensslBuildScript.absolutePath
-        args "${ANDROID_NDK_HOME}"
+        args "${ANDROID_NDK_HOME}" apiLevelStr
         workingDir thirdPartyDir
     }
 
