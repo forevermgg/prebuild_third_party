@@ -47,9 +47,9 @@ mkdir -p "$PREFIX" || { print_error "创建输出目录失败：$PREFIX"; exit 1
 cd "$BASE" || { print_error "切换目录失败：$BASE"; exit 1; }
 if [ ! -d "openssl" ]; then
     print_info "克隆OpenSSL源码（标签：${OPENSSL_BRANCH}）"
-    git clone --branch "${OPENSSL_BRANCH}" git://git.openssl.org/openssl.git || {
+    git clone --branch "${OPENSSL_BRANCH}" https://github.com/openssl/openssl.git || {
         print_error "克隆失败，尝试HTTPS源..."
-        git clone --branch "${OPENSSL_BRANCH}" https://git.openssl.org/openssl.git || {
+        git clone --branch "${OPENSSL_BRANCH}" https://github.com/openssl/openssl.git || {
             print_error "HTTPS克隆也失败，请检查网络连接或使用GitHub镜像：https://github.com/openssl/openssl.git"
             rm -rf "$PREFIX" || { print_error "删除目录失败：$PREFIX"; exit 1; }
             exit 1
@@ -64,7 +64,6 @@ else
 fi
 
 print_info "当前目录为 $(pwd)"
-cd  ../
 # 进入OpenSSL源码目录
 cd openssl || { print_error "切换到OpenSSL目录失败：$BASE/openssl"; exit 1; }
 print_info "当前OpenSSL源码目录：$(pwd)"
